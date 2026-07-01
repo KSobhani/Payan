@@ -1,5 +1,7 @@
 # Synthetic Dataset Generation & Preprocessing — Design Spec
 
+**Revised: 2026-07-01** (based on supervisor feedback — see revision notes below)
+
 ## Context
 
 This is phase 1 of the approved MSc thesis "ارائه یک سیستم پیشنهاددهنده هوشمند برای
@@ -9,64 +11,86 @@ first executable step after proposal approval is: **ساخت مجموعه‌دا
 پیش‌پردازش متون** (build the synthetic dataset and preprocess the text), budgeted at
 2 months.
 
-The proposal's methodology (بخش ۵) specifies a 3-step synthetic data construction
-process:
-1. Generate 50 virtual researchers (`Researcher_001`..`Researcher_050`), each with
-   one primary specialty, 5 keywords, and 15 symbolic paper titles, via controlled
-   random functions (no LLM).
-2. For each researcher, generate research projects at three difficulty levels
-   (easy / medium / hard), using GPT-4o with engineered prompts — especially for
-   medium and hard abstracts — totaling 500 projects.
-3. Quality control (completeness, dedup) and save as CSV.
+### Revision notes (2026-07-01)
 
-This dataset is later split 80/20 (train/test, stratified by difficulty) and used to
-evaluate three model architectures (TF-IDF baseline, ParsBERT-only, ParsBERT +
-structural features) — that evaluation work is a **later** phase, out of scope here.
+Supervisor review of the initial design (2026-06-30) produced the following
+requirements, all incorporated below:
 
-### Known proposal inconsistency (resolved with user)
+1. Specialties must be closely related sub-fields of CS/AI/SE — no unrelated domains
+   (medicine, economics, mechanics). Exactly **10 specialties**.
+2. Scale up to **100 researchers** (10 per specialty) and **~1300 projects**.
+3. Researchers are not uniformly single-specialty; multi-specialty distribution
+   is cumulative (see Step 1).
+4. Specialty is determined by **both** self-declaration and empirical evidence from
+   project history — not self-declaration alone.
+5. Each project must have rich content beyond title+abstract: introduction/problem
+   statement, literature review, methodology summary, results summary.
+6. Projects carry roles: مجری (principal investigator), ناظر (supervisor),
+   همکار (collaborator) — not just مجری.
+
+Two additional design decisions made during revision:
+
+- **Difficulty levels retained** (easy/medium/hard) but redefined to reflect the
+  new multi-specialty structure (see Step 2).
+- **`specialty_weights`** is a post-hoc derived field computed after all projects are
+  generated, not populated during researcher generation.
+
+### Known proposal inconsistency (resolved)
 
 The proposal's step-by-step methodology text (50 researchers × 3 projects = 150)
 does not match its sample-size section (500 projects, ~167 per difficulty level).
-**Resolved**: keep 50 researchers as the base (per the methodology section), and
-give each researcher 10 projects distributed across difficulty levels so the total
-is exactly 500, split as close to 167/167/166 as possible (see "Difficulty
-distribution" below).
+With the supervisor's scale-up to 100 researchers and ~13 projects each, this
+inconsistency is superseded. The final target is **100 researchers × 13 projects as
+مجری = 1300 projects**.
 
 ### SEMAT standard alignment
 
 The user supplied `IRIF_Book_V1.0.pdf` — the official "الگوی ملی اطلاعات پژوهشی
-ایران" (SEMAT national data model, 1390), a 267-page entity-relationship data
-dictionary. Relevant excerpts reviewed:
-- `PERSON_RESEARCHINTEREST` / `..._KEYWORD`: researchers have keyword-tagged
-  research interests — matches our researcher keyword design.
-- `PERSON_EXPERTISEANDSKILLS` / `..._KEYWORD`: expertise keywords — same pattern.
-- `PERSON_OU.CLAS_ID_SLVL` / `GRADE`: academic rank is a controlled-vocabulary code
-  (هیأت علمی مرتبه/پایه), not free text.
-- `PROJECT_PERSON.CLAS_ID_ROLE`: person-project assignment carries a role code
-  (مجری اصلی / همکار / ناظر), confirming the proposal's "سمت در پروژه" concept.
+ایران" (SEMAT national data model, 1390). Relevant excerpts reviewed:
 
-Two refinements adopted from this:
-- `academic_rank` uses the controlled vocabulary: مربی / استادیار / دانشیار / استاد.
-- Each project-assignment record carries a `role` field, fixed to `"مجری اصلی"` for
-  this dataset (no co-investigators/supervisors are generated), keeping the schema
+- `PERSON_RESEARCHINTEREST` / `..._KEYWORD`: researcher keyword-tagged interests —
+  matches our keyword design.
+- `PERSON_EXPERTISEANDSKILLS` / `..._KEYWORD`: expertise keywords — same pattern.
+- `PERSON_OU.CLAS_ID_SLVL`: academic rank is a controlled-vocabulary code —
+  `academic_rank` uses مربی / استادیار / دانشیار / استاد.
+- `PROJECT_PERSON.CLAS_ID_ROLE`: person-project role code — مجری / ناظر / همکار,
   forward-compatible with the proposal's later supervisor-recommendation feature.
 
 ## Goals
 
-- Produce a reproducible, open, synthetic Persian-language dataset of 500 research
-  projects assigned to 50 virtual researchers, structurally modeled on SEMAT, usable
-  as the input to later embedding/recommendation experiments.
-- Produce a cleaned/preprocessed version of the project text ready for ParsBERT
-  embedding extraction (a later phase).
-- Keep generation code modular and reusable from a Kaggle-hosted notebook, per the
-  user's stated execution environment preference.
+- Produce a reproducible, open, synthetic Persian-language dataset of ~1300 research
+  projects assigned to 100 virtual researchers, structurally modeled on SEMAT and
+  rich enough for LLM-based semantic matching experiments.
+- Produce a cleaned/preprocessed version of project text ready for embedding
+  extraction (later phase).
+- Keep generation code modular and runnable from a Kaggle-hosted notebook.
 
 ## Out of scope
 
-- Train/test split (belongs to the evaluation phase, section 5 of the proposal).
+- Train/test split (evaluation phase).
 - Embedding extraction, similarity computation, evaluation metrics.
-- Any use of real researcher data (the proposal explicitly avoids this for privacy
-  reasons; SID/IranDoc are only referenced for *style*, not extraction).
+- Any use of real researcher data (privacy; SID/IranDoc referenced for style only).
+
+## Specialty taxonomy (10 domains)
+
+All domains are CS sub-fields with meaningful pairwise overlap, enabling realistic
+cross-domain (hard) projects:
+
+| # | Domain (Persian) | Adjacent domains |
+|---|---|---|
+| 1 | یادگیری ماشین و داده‌کاوی | 2, 3, 4, 10 |
+| 2 | پردازش زبان طبیعی | 1, 4 |
+| 3 | بینایی ماشین و پردازش تصویر | 1, 4 |
+| 4 | هوش مصنوعی و سیستم‌های خبره | 1, 2, 3 |
+| 5 | امنیت سایبری و رمزنگاری | 7, 8 |
+| 6 | مهندسی نرم‌افزار و معماری سیستم | 8, 9 |
+| 7 | شبکه‌های کامپیوتری و انتقال داده | 5, 8, 9 |
+| 8 | رایانش ابری و سیستم‌های توزیع‌شده | 6, 7, 9 |
+| 9 | اینترنت اشیاء و سیستم‌های نهفته | 7, 8 |
+| 10 | پایگاه داده و بازیابی اطلاعات | 1, 4, 6 |
+
+Each domain has an associated keyword bank (~20 candidate keywords) and
+title-pattern templates, defined in `src/config.py`.
 
 ## Project structure
 
@@ -74,143 +98,242 @@ Two refinements adopted from this:
 D:\Projects\payan\
 ├── data/
 │   ├── raw/
-│   │   ├── researchers.csv      # 50 virtual researchers
-│   │   └── projects.csv         # 500 raw generated projects
+│   │   ├── researchers.csv          # 100 virtual researchers
+│   │   ├── projects.csv             # ~1300 generated projects (rich content)
+│   │   └── project_assignments.csv  # researcher–project role mapping
 │   └── processed/
-│       └── projects_clean.csv   # projects.csv + clean_text column
+│       └── projects_clean.csv       # projects.csv + clean_text column
 ├── src/
-│   ├── config.py        # specialty taxonomy, keyword banks, paths, RNG seed
-│   ├── researchers.py   # generate_researchers() — no LLM
-│   ├── projects.py      # generate_projects() — calls OpenAI GPT-4o
-│   └── preprocess.py    # normalize / tokenize / stopword-remove (Hazm)
+│   ├── config.py          # taxonomy, keyword banks, templates, paths, RNG seed
+│   ├── researchers.py     # generate_researchers() — no LLM
+│   ├── projects.py        # generate_projects() — GPT-4o, two-phase
+│   ├── assignments.py     # assign_roles() — no LLM
+│   └── preprocess.py      # normalize / tokenize / stopword-remove (Hazm)
 ├── notebooks/
 │   └── 01_build_dataset.ipynb   # orchestrator, Kaggle-compatible
 ├── tests/
-│   └── test_dataset.py  # schema + completeness + count validation
+│   └── test_dataset.py
 ├── requirements.txt
-├── .env.example          # OPENAI_API_KEY=...
+├── .env.example           # OPENAI_API_KEY=...
 └── README.md
 ```
 
-Generation logic lives in `src/` (testable, importable, diffable in git); the
-notebook only calls these functions and displays/saves results. This keeps the
-Kaggle requirement satisfiable without losing code review-ability.
+Generation logic lives in `src/` (testable, diffable); the notebook orchestrates
+and saves results. This preserves Kaggle compatibility without losing reviewability.
 
 ## Step 1 — Researcher generation (`src/researchers.py`)
 
-No LLM calls — pure controlled randomness (seeded for reproducibility), per the
-proposal's explicit wording for this step.
+No LLM calls — pure controlled randomness (seeded), per the proposal's wording.
 
-Specialty taxonomy: ~12–15 CS subfields modeled loosely on ACM CCS top-level
-categories (e.g., یادگیری ماشین, شبکه‌های کامپیوتری, امنیت اطلاعات, پردازش زبان
-طبیعی, بینایی ماشین, سیستم‌های توزیع‌شده, پایگاه داده, مهندسی نرم‌افزار, هوش
-مصنوعی, رایانش ابری, اینترنت اشیا, گرافیک کامپیوتری, الگوریتم و نظریه محاسبه).
-Each specialty has an associated keyword bank (~15-20 candidate keywords) and a set
-of title-pattern templates used to synthesize paper titles.
+### Multi-specialty distribution (cumulative, as specified by supervisor)
 
-Per researcher (`Researcher_001`..`Researcher_050`):
+From 100 researchers:
+
+| Group | Count | # Specialties |
+|---|---|---|
+| Single-specialty | 70 | 1 |
+| Two-specialty | 10 | exactly 2 |
+| Three-specialty | 10 | exactly 3 |
+| Four-specialty | 5 | exactly 4 |
+| Five-specialty | 5 | exactly 5 |
+| **Total** | **100** | |
+
+Additional specialties beyond the primary are sampled from the **adjacent domains**
+list (see taxonomy table) to ensure realistic thematic overlap rather than random
+cross-domain combinations.
+
+### Self-declared vs. empirical specialty
+
+- `self_declared_specialties`: list of domains the researcher explicitly claims
+  (set at generation time, before any project is produced).
+- `specialty_weights`: a per-domain score reflecting actual project history — 
+  computed **post-hoc** after all projects are generated (Step 2), then written
+  back to `researchers.csv`. Formula:
+
+  ```
+  weight[domain] = (projects_as_manager_in_domain) / (total_projects_as_manager)
+  ```
+
+  This enables the "hard" difficulty category (see Step 2): a researcher may have
+  non-zero `specialty_weights` in a domain not in their `self_declared_specialties`,
+  because they were assigned hard cross-domain projects that got recorded in their
+  history.
+
+### Output schema (`data/raw/researchers.csv`)
 
 | field | source |
 |---|---|
-| `researcher_id` | `Researcher_001`..`Researcher_050` |
-| `specialty` | 1 specialty, sampled from taxonomy |
-| `keywords` | 5 keywords sampled from that specialty's keyword bank |
-| `paper_titles` | 15 titles generated by combining title-pattern templates with the researcher's keywords (e.g. «بهبود [روش] برای [مسئله] با استفاده از [تکنیک]») |
-| `academic_rank` | sampled from {مربی, استادیار, دانشیار, استاد} (SEMAT-aligned controlled vocabulary), weighted toward استادیار/دانشیار |
-| `num_papers` | derived from `len(paper_titles)` = 15 (fixed, matches proposal) |
-| `topic_diversity` | a controlled-random score (0–1) representing how spread the researcher's 15 papers are across keywords/sub-topics — used later as a structural feature |
-| `activity_index` | a controlled-random score representing recent publication activity, used later as a structural feature |
-
-Output: `data/raw/researchers.csv`, one row per researcher; `keywords` and
-`paper_titles` stored as `|`-joined strings (simple, avoids CSV-in-CSV escaping
-issues; downstream code splits on `|`).
+| `researcher_id` | `Researcher_001`..`Researcher_100` |
+| `name` | pseudonym: `پژوهشگر_001`..`پژوهشگر_100` |
+| `academic_rank` | sampled from {مربی, استادیار, دانشیار, استاد}, weighted toward استادیار/دانشیار |
+| `university` | pseudonym: `دانشگاه_A`..`دانشگاه_J` (10 virtual universities) |
+| `department` | derived from primary specialty |
+| `self_declared_specialties` | `\|`-joined domain names |
+| `research_keywords` | 5 keywords per declared specialty, sampled from domain keyword bank, `\|`-joined |
+| `paper_titles` | 15 title-pattern-generated titles covering all declared specialties, `\|`-joined |
+| `specialty_weights` | empty at generation; filled after Step 2 (post-hoc) |
+| `num_papers` | fixed 15 (matches proposal) |
+| `topic_diversity` | controlled-random 0–1 score; higher for multi-specialty researchers |
+| `activity_index` | controlled-random 0–1 score (recent publication activity) |
 
 ## Step 2 — Project generation (`src/projects.py`, GPT-4o)
 
-### Difficulty distribution (50 researchers × 10 projects = 500)
+### Project count and assignment (100 researchers × 13 = 1300 projects)
 
-Each researcher gets a base of 3 easy + 3 medium + 3 hard (9 projects), plus one
-"bonus" project whose difficulty rotates by researcher index `i` (0-based):
-- `i % 3 == 0` → bonus easy (researchers 0,3,...,48 → 17 researchers)
-- `i % 3 == 1` → bonus medium (researchers 1,4,...,49 → 17 researchers)
-- `i % 3 == 2` → bonus hard (researchers 2,5,...,47 → 16 researchers)
+Each researcher serves as **مجری** (principal investigator) on exactly 13 projects.
+Additionally, most projects also have a **ناظر** and/or **همکار**, assigned from
+other researchers (Step 3). The 1300 figure is the count of projects by مجری
+assignment, matching the supervisor's target range of 1200–1500.
 
-Totals: **167 easy + 167 medium + 166 hard = 500**, matching the proposal's sample
-size section exactly, while keeping "10 projects per researcher" and "3 base
-difficulty levels" intact.
+### Difficulty levels — redefined for multi-specialty structure
 
-### Prompt strategy per difficulty (GPT-4o, structured JSON output)
+| Level | Definition | Matching challenge |
+|---|---|---|
+| **آسان** | Project in researcher's **primary** declared specialty; direct keyword reuse from their keyword list | TF-IDF baseline sufficient |
+| **متوسط** | Project in researcher's **secondary** declared specialty (or primary with vocabulary shift); no shared keywords — paraphrase only | Requires semantic understanding beyond keyword matching |
+| **سخت** | Project blends two of the researcher's adjacent specialties (cross-domain), OR is in a specialty present in project history but **not** in self-declaration | Requires inferring from research history; tests LLM advantage over baseline |
 
-Every project is generated by GPT-4o (not just medium/hard) — using the same model
-for all three keeps text style/quality consistent; only the *prompt* changes:
+For single-specialty researchers, hard projects blend their one specialty with a
+randomly chosen adjacent domain.
 
-- **آسان (easy)**: prompt instructs the model to write a title + abstract that
-  directly reuses the researcher's own keywords and phrasing from their paper
-  titles → high lexical overlap by construction.
-- **متوسط (medium)**: prompt instructs the model to stay within the researcher's
-  specialty conceptually but explicitly avoid reusing the given keywords verbatim
-  (paraphrase) → conceptual overlap, no shared vocabulary.
-- **سخت (hard)**: prompt blends the researcher's primary specialty with one other,
-  randomly chosen, distant specialty from the taxonomy, asking for an
-  interdisciplinary project abstract → requires deep semantic inference to match
-  back to the researcher.
+### Distribution per researcher (13 projects)
 
-Each API call requests structured JSON: `{title, abstract, keywords}` (3-7
-keywords). A fixed system prompt establishes domain (Persian academic CS research
-proposals) and length constraints (title ~1 line, abstract ~100-180 words, in
-Persian).
+| Difficulty | Count | Notes |
+|---|---|---|
+| آسان | 5 | primary specialty, direct keywords |
+| متوسط | 5 | secondary (or paraphrased primary) |
+| سخت | 3 | cross-domain or history-only match |
+
+Total across 100 researchers: **500 easy + 500 medium + 300 hard = 1300**.
+
+### Two-phase GPT-4o generation (cost control)
+
+Generating 1300 projects × 6 rich sections in a single prompt each would exceed
+context and cost limits. Two-phase approach:
+
+**Phase A — Core generation** (1 API call per project, ~300–400 tokens output):
+```json
+{
+  "title": "...",
+  "abstract": "... (100–150 words)",
+  "keywords": ["...", "..."],
+  "specialty_domain": "..."
+}
+```
+
+**Phase B — Section expansion** (1 API call per project, ~600–800 tokens output):
+Using Phase A's title+abstract as anchor, generate:
+```json
+{
+  "introduction": "... (80–120 words)",
+  "literature_review": "... (80–120 words)",
+  "methodology_summary": "... (60–80 words)",
+  "results_summary": "... (60–80 words)"
+}
+```
+
+Total: ~2 × 1300 = 2600 API calls. Estimated cost at GPT-4o pricing: **under $15**.
+
+Both phases use a fixed Persian-language system prompt establishing domain (Iranian
+academic CS research) and style (formal academic Persian). Difficulty-specific
+instructions are injected into the user prompt:
+
+- **آسان**: "از کلیدواژه‌های دقیق پژوهشگر در متن استفاده کن."
+- **متوسط**: "مفهوماً در حوزه تخصصی پژوهشگر بمان ولی از کلیدواژه‌های مستقیم استفاده نکن."
+- **سخت**: "پروژه‌ای بین‌حوزه‌ای بنویس که حوزه‌های [A] و [B] را ترکیب کند."
+
+All calls use structured JSON output mode. `projects.py` writes incrementally to
+CSV after each project so a partial run can resume without re-spending API budget.
+Simple bounded retry (max 3 attempts) on transient API errors.
 
 ### Output schema (`data/raw/projects.csv`)
 
 | field | description |
 |---|---|
-| `project_id` | sequential id |
+| `project_id` | sequential id (`PRJ_0001`..`PRJ_1300`) |
 | `title` | generated title (Persian) |
-| `abstract` | generated abstract (Persian) |
-| `keywords` | generated keywords, `|`-joined |
-| `researcher_id` | assigned investigator (FK to researchers.csv) |
-| `role` | fixed `"مجری اصلی"` (SEMAT-aligned, forward-compatible field) |
+| `specialty_domain` | primary domain of the project |
+| `abstract` | generated abstract (Persian, ~100–150 words) |
+| `introduction` | intro + problem statement (~80–120 words) |
+| `literature_review` | prior work summary (~80–120 words) |
+| `methodology_summary` | method overview (~60–80 words) |
+| `results_summary` | findings/contributions (~60–80 words) |
+| `keywords` | generated keywords, `\|`-joined (3–7) |
+| `manager_id` | FK → `researchers.csv` (مجری) |
 | `difficulty` | `easy` \| `medium` \| `hard` |
+| `year` | synthetic year, random in range 1395–1403 (Solar Hijri) |
 
-### Cost/reliability notes
+## Step 3 — Role assignment (`src/assignments.py`)
 
-~500 short GPT-4o calls, structured output, estimated well under $5 in API cost.
-`projects.py` retries on transient API errors (simple bounded retry, not a generic
-resilience framework) and writes incrementally so a partial run can resume rather
-than re-spending budget from scratch.
+Assigns ناظر and همکار to projects after all 1300 projects are generated.
+No LLM — pure rule-based selection from the researcher pool.
 
-## Step 3 — Preprocessing (`src/preprocess.py`, Hazm)
+### Role distribution (across 1300 projects)
 
-Applied to `title + abstract + keywords` (concatenated) per the proposal's
-preprocessing description:
-1. Character normalization (unify ي/ی and ك/ک forms, strip diacritics) using Hazm's
-   `Normalizer`.
-2. Sentence/word tokenization via Hazm.
-3. Stopword removal: Hazm's standard Persian stopword list + a supplementary
-   50-word manual list of high-frequency, low-information terms (to be curated
-   during implementation).
-4. Output joined back into a single `clean_text` string column.
+| Scenario | % | Count |
+|---|---|---|
+| مجری + ناظر | 55% | ~715 projects |
+| مجری + ناظر + ۱ همکار | 30% | ~390 projects |
+| مجری only | 15% | ~195 projects |
 
-Dedup/completeness (also this step, per proposal):
-- Drop rows with any of `title`/`abstract`/`keywords` empty.
+### Assignment rules
+
+- **ناظر**: must have `academic_rank` ∈ {دانشیار, استاد}; must have the project's
+  `specialty_domain` in their `self_declared_specialties` or adjacent domains; must
+  not be the same person as مجری.
+- **همکار**: sampled from researchers whose specialties are adjacent to the project
+  domain; any academic rank; must not be مجری or ناظر for this project.
+
+### Output schema (`data/raw/project_assignments.csv`)
+
+| field | description |
+|---|---|
+| `project_id` | FK → `projects.csv` |
+| `researcher_id` | FK → `researchers.csv` |
+| `role` | `مجری` \| `ناظر` \| `همکار` |
+
+After assignments are complete, `specialty_weights` is computed per researcher and
+written back to `researchers.csv`.
+
+## Step 4 — Preprocessing (`src/preprocess.py`, Hazm)
+
+Applied to concatenation of `title + abstract + introduction + literature_review +
+methodology_summary + results_summary` per project:
+
+1. Character normalization (unify ي/ی and ك/ک, strip diacritics) — Hazm `Normalizer`.
+2. Word tokenization — Hazm.
+3. Stopword removal — Hazm standard list + ~50-word supplementary manual list
+   (curated during implementation).
+4. Output joined back as single `clean_text` string.
+
+Dedup/completeness:
+- Drop rows missing any of `title` / `abstract` / `keywords`.
 - Drop duplicate rows by exact `title` match.
 
-Output: `data/processed/projects_clean.csv` = `projects.csv` + `clean_text` column,
-post-dedup/completeness filtering.
+Output: `data/processed/projects_clean.csv` = `projects.csv` + `clean_text` column.
 
 ## Validation (`tests/test_dataset.py`)
 
-Lightweight pytest checks, not full TDD (most logic is stochastic generation or LLM
-calls, not unit-testable business logic):
-- `researchers.csv` has exactly 50 rows, all required fields non-null, exactly 5
-  keywords and 15 paper titles per row.
-- `projects.csv` has exactly 500 rows; difficulty counts are 167/167/166; every
-  `researcher_id` FK resolves to a row in `researchers.csv`; every researcher has
-  exactly 10 assigned projects.
-- `projects_clean.csv` has no duplicate titles and no empty `title`/`abstract`/
-  `keywords`/`clean_text`.
+- `researchers.csv`: exactly 100 rows; all required fields non-null; `specialty_weights`
+  sums to 1.0 per researcher (post-hoc fill); multi-specialty counts match distribution
+  (70/10/10/5/5).
+- `projects.csv`: exactly 1300 rows; difficulty counts 500/500/300; every `manager_id`
+  resolves to a row in `researchers.csv`; every researcher has exactly 13 projects
+  as manager.
+- `project_assignments.csv`: every `project_id` has exactly one `مجری` row; ناظر rows
+  satisfy rank constraint (دانشیار/استاد); no researcher appears twice in the same
+  project.
+- `projects_clean.csv`: no duplicate titles; no empty `clean_text`.
 
 ## Dependencies
 
-`openai`, `pandas`, `numpy`, `hazm`, `python-dotenv`, `pytest` (dev). Captured in
-`requirements.txt`.
+`openai`, `pandas`, `numpy`, `hazm`, `python-dotenv`, `pytest` (dev).
+Captured in `requirements.txt`.
+
+## Cost summary
+
+| Component | Calls | Estimated cost |
+|---|---|---|
+| Phase A (core generation) | 1300 | ~$4 |
+| Phase B (section expansion) | 1300 | ~$9 |
+| **Total** | **2600** | **~$13** |
