@@ -66,18 +66,18 @@ def test_specialty_weights_sum_to_one(researchers):
 
 
 def test_project_count(projects):
-    assert len(projects) == 700
+    assert len(projects) == 800
 
 
 def test_difficulty_distribution(projects):
     assert (projects["difficulty"] == "easy").sum() == 300
     assert (projects["difficulty"] == "medium").sum() == 300
-    assert (projects["difficulty"] == "hard").sum() == 100
+    assert (projects["difficulty"] == "hard").sum() == 200
 
 
-def test_each_researcher_has_7_projects(projects, researchers):
+def test_each_researcher_has_8_projects(projects, researchers):
     per_researcher = projects.groupby("manager_id").size()
-    assert (per_researcher == 7).all()
+    assert (per_researcher == 8).all()
 
 
 def test_manager_ids_valid(projects, researchers):

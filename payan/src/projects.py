@@ -133,18 +133,29 @@ def generate_projects(
         hard_pool = [s for s in adjacent if s != primary]
         if not hard_pool:
             hard_pool = [s for s in config.SPECIALTY_LIST if s != primary]
-        cross_specialty = rng.choice(hard_pool)
-        cross_sub = rng.choice(config.SPECIALTIES[cross_specialty]["sub_topics"])
 
-        # 7 tasks per researcher: seq 0-2 easy, 3-5 medium, 6 hard
+        cross_specialty_1 = rng.choice(hard_pool)
+        cross_sub_1 = rng.choice(config.SPECIALTIES[cross_specialty_1]["sub_topics"])
+
+        # Second hard: use secondary if researcher is multi-specialty, else pick different adjacent
+        if secondary != primary:
+            cross_specialty_2 = secondary
+            cross_sub_2 = rng.choice(config.SPECIALTIES[secondary]["sub_topics"])
+        else:
+            hard_pool_2 = [s for s in hard_pool if s != cross_specialty_1] or hard_pool
+            cross_specialty_2 = rng.choice(hard_pool_2)
+            cross_sub_2 = rng.choice(config.SPECIALTIES[cross_specialty_2]["sub_topics"])
+
+        # 8 tasks per researcher: seq 0-2 easy, 3-5 medium, 6-7 hard
         tasks = [
-            (0, "easy",   primary,   primary_subs[0],   None,            None),
-            (1, "easy",   primary,   primary_subs[1],   None,            None),
-            (2, "easy",   primary,   primary_subs[2],   None,            None),
-            (3, "medium", secondary, secondary_subs[0], None,            None),
-            (4, "medium", secondary, secondary_subs[1], None,            None),
-            (5, "medium", secondary, secondary_subs[2], None,            None),
-            (6, "hard",   primary,   primary_subs[0],   cross_specialty, cross_sub),
+            (0, "easy",   primary,   primary_subs[0],   None,              None),
+            (1, "easy",   primary,   primary_subs[1],   None,              None),
+            (2, "easy",   primary,   primary_subs[2],   None,              None),
+            (3, "medium", secondary, secondary_subs[0], None,              None),
+            (4, "medium", secondary, secondary_subs[1], None,              None),
+            (5, "medium", secondary, secondary_subs[2], None,              None),
+            (6, "hard",   primary,   primary_subs[0],   cross_specialty_1, cross_sub_1),
+            (7, "hard",   primary,   primary_subs[1],   cross_specialty_2, cross_sub_2),
         ]
 
         for seq, difficulty, specialty, sub_topic, second_specialty, second_sub_topic in tasks:

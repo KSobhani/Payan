@@ -14,8 +14,8 @@ PROJECTS_CLEAN_CSV = DATA_PROCESSED / "projects_clean.csv"
 GPT_MODEL = "gpt-4o"
 
 N_RESEARCHERS = 100
-PROJECTS_PER_RESEARCHER = 7
-DIFFICULTY_DIST = {"easy": 3, "medium": 3, "hard": 1}
+PROJECTS_PER_RESEARCHER = 8
+DIFFICULTY_DIST = {"easy": 3, "medium": 3, "hard": 2}
 
 ACADEMIC_RANKS = ["مربی", "استادیار", "دانشیار", "استاد"]
 RANK_WEIGHTS = [0.10, 0.40, 0.35, 0.15]

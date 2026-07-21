@@ -103,7 +103,7 @@ def test_generate_projects_count(mock_paths):
     researchers_df = generate_researchers()
     client, _ = _make_mock_client()
     df = generate_projects(researchers_df, client=client)
-    assert len(df) == 700
+    assert len(df) == 800
 
 
 def test_generate_projects_difficulty_distribution(mock_paths):
@@ -112,7 +112,7 @@ def test_generate_projects_difficulty_distribution(mock_paths):
     df = generate_projects(researchers_df, client=client)
     assert (df["difficulty"] == "easy").sum() == 300
     assert (df["difficulty"] == "medium").sum() == 300
-    assert (df["difficulty"] == "hard").sum() == 100
+    assert (df["difficulty"] == "hard").sum() == 200
 
 
 def test_generate_projects_schema(mock_paths):
@@ -137,12 +137,12 @@ def test_generate_projects_resume(mock_paths):
         "abstract": "چکیده", "introduction": "مقدمه", "literature_review": "پیشینه",
         "methodology_summary": "روش", "results_summary": "نتایج",
         "keywords": "کلید۱", "manager_id": first_id,
-        "difficulty": ["easy", "easy", "easy", "medium", "medium", "medium", "hard"][i],
+        "difficulty": ["easy", "easy", "easy", "medium", "medium", "medium", "hard", "hard"][i],
         "year": 1400, "seq": i,
-    } for i in range(7)])
+    } for i in range(8)])
     existing.to_csv(config.PROJECTS_CSV, index=False, encoding="utf-8-sig")
 
     client, call_count = _make_mock_client()
     df = generate_projects(researchers_df, client=client)
-    assert len(df) == 700
-    assert call_count["n"] == (700 - 7) * 2
+    assert len(df) == 800
+    assert call_count["n"] == (800 - 8) * 2
