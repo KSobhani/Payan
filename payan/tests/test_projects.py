@@ -1,7 +1,7 @@
 import json
 import pytest
 import pandas as pd
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from src import config
 from src.researchers import generate_researchers
 from src.projects import (
@@ -13,41 +13,46 @@ from src.projects import (
 
 FAKE_RESEARCHER = {
     "researcher_id": "Researcher_001",
-    "self_declared_specialties": "یادگیری ماشین و داده‌کاوی|پردازش زبان طبیعی",
-    "research_keywords": "یادگیری عمیق|شبکه عصبی|تحلیل احساسات|تشخیص موجودیت|BERT|دسته‌بندی|ماشین بردار پشتیبان|خوشه‌بندی|داده‌کاوی|ویژگی‌سازی",
-    "paper_titles": "عنوان ۱|عنوان ۲|عنوان ۳|عنوان ۴|عنوان ۵|عنوان ۶|عنوان ۷|عنوان ۸|عنوان ۹|عنوان ۱۰|عنوان ۱۱|عنوان ۱۲|عنوان ۱۳|عنوان ۱۴|عنوان ۱۵",
+    "self_declared_specialties": "یادگیری ماشین و داده‌کاوی|رسانه و ارتباطات",
+    "research_keywords": "یادگیری عمیق|شبکه عصبی|تشخیص الگو|پیشگویی|سیستم توصیه‌گر|تحلیل محتوا|رسانه اجتماعی|سواد رسانه‌ای|تأثیر رسانه|جریان اطلاعات",
+    "paper_titles": "|".join([f"عنوان {i}" for i in range(1, 16)]),
     "academic_rank": "استادیار",
     "department": "یادگیری ماشین و داده‌کاوی",
 }
 
 FAKE_PHASE_A = {
-    "title": "پیش‌بینی احساسات با شبکه عصبی",
-    "abstract": "این پژوهش روشی برای تحلیل احساسات ارائه می‌دهد.",
-    "keywords": ["شبکه عصبی", "تحلیل احساسات"],
+    "title": "پیش‌بینی الگوهای رفتاری با یادگیری عمیق",
+    "abstract": "این پژوهش روشی برای تشخیص الگو ارائه می‌دهد.",
+    "keywords": ["یادگیری عمیق", "تشخیص الگو"],
     "specialty_domain": "یادگیری ماشین و داده‌کاوی",
 }
 
 FAKE_PHASE_B = {
-    "introduction": "در این پژوهش مسئله تحلیل احساسات بررسی می‌شود.",
+    "introduction": "در این پژوهش مسئله تشخیص الگو بررسی می‌شود.",
     "literature_review": "پژوهش‌های پیشین نشان داده‌اند که...",
-    "methodology_summary": "از شبکه عصبی LSTM استفاده شده است.",
-    "results_summary": "نتایج نشان دهنده بهبود ۱۵ درصدی دقت است.",
+    "methodology_summary": "از شبکه عصبی استفاده شده است.",
+    "results_summary": "نتایج نشان دهنده بهبود دقت است.",
 }
 
 
 def test_phase_a_prompt_easy_uses_keywords():
-    prompt = _build_phase_a_prompt(FAKE_RESEARCHER, "easy", "یادگیری ماشین و داده‌کاوی")
+    prompt = _build_phase_a_prompt(FAKE_RESEARCHER, "easy", "یادگیری ماشین و داده‌کاوی", "تشخیص الگو")
     assert "کلیدواژه" in prompt or "keywords" in prompt.lower()
+    assert "تشخیص الگو" in prompt
 
 
 def test_phase_a_prompt_medium_avoids_direct_keywords():
-    prompt = _build_phase_a_prompt(FAKE_RESEARCHER, "medium", "پردازش زبان طبیعی")
-    assert "بدون" in prompt or "استفاده نکن" in prompt or "واژگان متفاوت" in prompt
+    prompt = _build_phase_a_prompt(FAKE_RESEARCHER, "medium", "رسانه و ارتباطات", "تحلیل محتوای رسانه‌ای")
+    assert "استفاده نکن" in prompt or "واژگان متفاوت" in prompt
 
 
 def test_phase_a_prompt_hard_blends_two_specialties():
-    prompt = _build_phase_a_prompt(FAKE_RESEARCHER, "hard", "یادگیری ماشین و داده‌کاوی", second_specialty="پردازش زبان طبیعی")
-    assert "پردازش زبان طبیعی" in prompt
+    prompt = _build_phase_a_prompt(
+        FAKE_RESEARCHER, "hard",
+        "یادگیری ماشین و داده‌کاوی", "تشخیص الگو",
+        "رسانه و ارتباطات", "تحلیل محتوای رسانه‌ای",
+    )
+    assert "رسانه و ارتباطات" in prompt
     assert "یادگیری ماشین" in prompt
 
 
@@ -68,17 +73,16 @@ def test_call_gpt_returns_parsed_dict(mock_paths):
 
 def test_call_gpt_retries_on_json_error(mock_paths):
     client = MagicMock()
-    bad_response = MagicMock()
-    bad_response.choices[0].message.content = "not json"
-    good_response = MagicMock()
-    good_response.choices[0].message.content = json.dumps(FAKE_PHASE_A)
-    client.chat.completions.create.side_effect = [bad_response, good_response]
+    bad = MagicMock()
+    bad.choices[0].message.content = "not json"
+    good = MagicMock()
+    good.choices[0].message.content = json.dumps(FAKE_PHASE_A)
+    client.chat.completions.create.side_effect = [bad, good]
     result = _call_gpt(client, "sys", "user", max_retries=2)
     assert result == FAKE_PHASE_A
 
 
-def test_generate_projects_count(mock_paths):
-    researchers_df = generate_researchers()
+def _make_mock_client():
     client = MagicMock()
     call_count = {"n": 0}
 
@@ -92,46 +96,28 @@ def test_generate_projects_count(mock_paths):
         return r
 
     client.chat.completions.create.side_effect = side_effect
+    return client, call_count
+
+
+def test_generate_projects_count(mock_paths):
+    researchers_df = generate_researchers()
+    client, _ = _make_mock_client()
     df = generate_projects(researchers_df, client=client)
-    assert len(df) == 1300
+    assert len(df) == 500
 
 
 def test_generate_projects_difficulty_distribution(mock_paths):
     researchers_df = generate_researchers()
-    client = MagicMock()
-    call_count = {"n": 0}
-
-    def side_effect(*args, **kwargs):
-        call_count["n"] += 1
-        r = MagicMock()
-        if call_count["n"] % 2 == 1:
-            r.choices[0].message.content = json.dumps(FAKE_PHASE_A, ensure_ascii=False)
-        else:
-            r.choices[0].message.content = json.dumps(FAKE_PHASE_B, ensure_ascii=False)
-        return r
-
-    client.chat.completions.create.side_effect = side_effect
+    client, _ = _make_mock_client()
     df = generate_projects(researchers_df, client=client)
-    assert (df["difficulty"] == "easy").sum() == 500
-    assert (df["difficulty"] == "medium").sum() == 500
-    assert (df["difficulty"] == "hard").sum() == 300
+    assert (df["difficulty"] == "easy").sum() == 200
+    assert (df["difficulty"] == "medium").sum() == 200
+    assert (df["difficulty"] == "hard").sum() == 100
 
 
 def test_generate_projects_schema(mock_paths):
     researchers_df = generate_researchers()
-    client = MagicMock()
-    call_count = {"n": 0}
-
-    def side_effect(*args, **kwargs):
-        call_count["n"] += 1
-        r = MagicMock()
-        if call_count["n"] % 2 == 1:
-            r.choices[0].message.content = json.dumps(FAKE_PHASE_A, ensure_ascii=False)
-        else:
-            r.choices[0].message.content = json.dumps(FAKE_PHASE_B, ensure_ascii=False)
-        return r
-
-    client.chat.completions.create.side_effect = side_effect
+    client, _ = _make_mock_client()
     df = generate_projects(researchers_df, client=client)
     required_cols = [
         "project_id", "title", "specialty_domain", "abstract",
@@ -151,23 +137,12 @@ def test_generate_projects_resume(mock_paths):
         "abstract": "چکیده", "introduction": "مقدمه", "literature_review": "پیشینه",
         "methodology_summary": "روش", "results_summary": "نتایج",
         "keywords": "کلید۱", "manager_id": first_id,
-        "difficulty": ["easy", "medium", "hard"][i % 3],
+        "difficulty": ["easy", "easy", "medium", "medium", "hard"][i],
         "year": 1400, "seq": i,
-    } for i in range(13)])
+    } for i in range(5)])
     existing.to_csv(config.PROJECTS_CSV, index=False, encoding="utf-8-sig")
 
-    call_count = {"n": 0}
-    client = MagicMock()
-    def side_effect(*args, **kwargs):
-        call_count["n"] += 1
-        r = MagicMock()
-        if call_count["n"] % 2 == 1:
-            r.choices[0].message.content = json.dumps(FAKE_PHASE_A, ensure_ascii=False)
-        else:
-            r.choices[0].message.content = json.dumps(FAKE_PHASE_B, ensure_ascii=False)
-        return r
-    client.chat.completions.create.side_effect = side_effect
-
+    client, call_count = _make_mock_client()
     df = generate_projects(researchers_df, client=client)
-    assert len(df) == 1300
-    assert call_count["n"] == (1300 - 13) * 2
+    assert len(df) == 500
+    assert call_count["n"] == (500 - 5) * 2

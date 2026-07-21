@@ -15,7 +15,7 @@ def projects(researchers):
     rows = []
     for _, r in researchers.iterrows():
         specs = r["self_declared_specialties"].split("|")
-        for seq, diff in enumerate(["easy"] * 5 + ["medium"] * 5 + ["hard"] * 3):
+        for seq, diff in enumerate(["easy", "easy", "medium", "medium", "hard"]):
             rows.append({
                 "project_id": f"PRJ_{len(rows)+1:04d}",
                 "title": f"طرح {len(rows)+1}",
@@ -61,23 +61,26 @@ def test_supervisor_rank_constraint(researchers, projects):
     rank_map = researchers.set_index("researcher_id")["academic_rank"]
     for _, row in supervisors.iterrows():
         rank = rank_map[row["researcher_id"]]
-        assert rank in config.SUPERVISOR_RANKS, f"Supervisor {row['researcher_id']} has invalid rank {rank}"
+        assert rank in config.SUPERVISOR_RANKS
+
+
+def test_no_همکار_role(researchers, projects):
+    asgn = assign_roles(projects, researchers)
+    assert "همکار" not in asgn["role"].values
 
 
 def test_no_duplicate_roles_per_project(researchers, projects):
     asgn = assign_roles(projects, researchers)
     dupes = asgn.groupby(["project_id", "researcher_id"]).size()
-    assert (dupes == 1).all(), "Same researcher assigned twice to same project"
+    assert (dupes == 1).all()
 
 
-def test_role_distribution_approx(researchers, projects):
+def test_supervisor_rate_approx(researchers, projects):
     asgn = assign_roles(projects, researchers)
     project_roles = asgn.groupby("project_id")["role"].apply(set)
     n_supervisor = sum("ناظر" in roles for roles in project_roles)
-    n_collaborator = sum("همکار" in roles for roles in project_roles)
     n_total = len(projects)
-    assert 0.75 * n_total <= n_supervisor <= 0.95 * n_total
-    assert 0.20 * n_total <= n_collaborator <= 0.45 * n_total
+    assert 0.55 * n_total <= n_supervisor <= 0.85 * n_total
 
 
 def test_compute_specialty_weights(researchers, projects):
@@ -85,7 +88,7 @@ def test_compute_specialty_weights(researchers, projects):
     updated = compute_specialty_weights(projects, asgn, researchers)
     for _, row in updated.iterrows():
         weights_str = row["specialty_weights"]
-        assert weights_str != "", f"Researcher {row['researcher_id']} has empty weights"
+        assert weights_str != ""
         weights = dict(item.split(":") for item in weights_str.split("|"))
         total = sum(float(v) for v in weights.values())
-        assert abs(total - 1.0) < 0.01, f"Weights don't sum to 1 for {row['researcher_id']}"
+        assert abs(total - 1.0) < 0.01

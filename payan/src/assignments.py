@@ -9,8 +9,6 @@ def assign_roles(
 ) -> pd.DataFrame:
     rng = random.Random(config.SEED + 2)
 
-    rank_map = researchers_df.set_index("researcher_id")["academic_rank"].to_dict()
-
     supervisor_pool: dict[str, list[str]] = {}
     collaborator_pool: dict[str, list[str]] = {}
     for _, r in researchers_df.iterrows():
@@ -34,11 +32,8 @@ def assign_roles(
 
         rows.append({"project_id": pid, "researcher_id": mgr, "role": "مجری"})
 
-        roll = rng.random()
-        assign_supervisor = roll < 0.85
-        assign_collaborator = roll < 0.30
-
-        if assign_supervisor:
+        # 70% get a supervisor, 30% are مجری only
+        if rng.random() < 0.70:
             pool = [r for r in supervisor_pool.get(domain, []) if r != mgr]
             if not pool:
                 pool = [
@@ -48,15 +43,6 @@ def assign_roles(
             if pool:
                 supervisor = rng.choice(pool)
                 rows.append({"project_id": pid, "researcher_id": supervisor, "role": "ناظر"})
-
-                if assign_collaborator:
-                    collab_pool = [
-                        r for r in collaborator_pool.get(domain, [])
-                        if r != mgr and r != supervisor
-                    ]
-                    if collab_pool:
-                        collaborator = rng.choice(collab_pool)
-                        rows.append({"project_id": pid, "researcher_id": collaborator, "role": "همکار"})
 
     df = pd.DataFrame(rows)
     df.to_csv(config.ASSIGNMENTS_CSV, index=False, encoding="utf-8-sig")

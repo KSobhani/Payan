@@ -5,7 +5,7 @@ import pandas as pd
 from src import config
 
 SYSTEM_PROMPT = (
-    "تو یک پژوهشگر ارشد دانشگاهی ایرانی در حوزه علوم کامپیوتر و مهندسی نرم‌افزار هستی. "
+    "تو یک پژوهشگر ارشد دانشگاهی ایرانی هستی. "
     "وظیفه‌ات تولید طرح‌های پژوهشی واقع‌گرایانه به زبان فارسی رسمی دانشگاهی است. "
     "خروجی را فقط به‌صورت JSON معتبر ارائه بده، بدون توضیح اضافه."
 )
@@ -15,37 +15,43 @@ def _build_phase_a_prompt(
     researcher: dict,
     difficulty: str,
     specialty: str,
+    sub_topic: str,
     second_specialty: str | None = None,
+    second_sub_topic: str | None = None,
 ) -> str:
     keywords = researcher["research_keywords"].replace("|", "، ")
 
     if difficulty == "easy":
         return (
             f"پژوهشگر {researcher['researcher_id']} در حوزه «{specialty}» تخصص دارد.\n"
+            f"زیرموضوع: «{sub_topic}»\n"
             f"کلیدواژه‌های پژوهشی او: {keywords}\n\n"
-            "یک طرح پژوهشی آسان بنویس که:\n"
-            "- مستقیماً از کلیدواژه‌های ذکرشده استفاده کند (overlap واژگانی بالا)\n"
-            f"- در حوزه اصلی «{specialty}» باشد\n\n"
+            "یک پروپوزال پژوهشی آسان بنویس که:\n"
+            f"- دقیقاً در زیرموضوع «{sub_topic}» باشد\n"
+            "- مستقیماً از کلیدواژه‌های ذکرشده استفاده کند (overlap واژگانی بالا)\n\n"
             'خروجی JSON: {"title": "...", "abstract": "...(100-150 کلمه)", '
             '"keywords": [...], "specialty_domain": "..."}'
         )
     elif difficulty == "medium":
         return (
             f"پژوهشگر {researcher['researcher_id']} در حوزه «{specialty}» تخصص دارد.\n"
+            f"زیرموضوع: «{sub_topic}»\n"
             f"کلیدواژه‌های پژوهشی او: {keywords}\n\n"
-            "یک طرح پژوهشی متوسط بنویس که:\n"
-            f"- مفهوماً در حوزه «{specialty}» باشد\n"
+            "یک پروپوزال پژوهشی متوسط بنویس که:\n"
+            f"- مفهوماً در زیرموضوع «{sub_topic}» باشد\n"
             "- از کلیدواژه‌های مستقیم ذکرشده استفاده نکن (واژگان متفاوت، مفهوم مشابه)\n\n"
             'خروجی JSON: {"title": "...", "abstract": "...(100-150 کلمه)", '
             '"keywords": [...], "specialty_domain": "..."}'
         )
     else:
         sp2 = second_specialty or specialty
+        st2 = second_sub_topic or sub_topic
         return (
-            f"یک طرح پژوهشی بین‌رشته‌ای بنویس که حوزه‌های «{specialty}» و «{sp2}» را ترکیب کند.\n"
+            f"یک پروپوزال پژوهشی بین‌رشته‌ای بنویس که حوزه‌های «{specialty}» "
+            f"(زیرموضوع: {sub_topic}) و «{sp2}» (زیرموضوع: {st2}) را ترکیب کند.\n"
             "این طرح باید:\n"
             "- ترکیب واقعی و منطقی دو حوزه باشد\n"
-            f"- از مفاهیم هر دو حوزه «{specialty}» و «{sp2}» بهره ببرد\n"
+            f"- از مفاهیم هر دو زیرموضوع بهره ببرد\n"
             "- چالش اصلی، انگیزه و رویکرد را تشریح کند\n\n"
             'خروجی JSON: {"title": "...", "abstract": "...(100-150 کلمه)", '
             '"keywords": [...], "specialty_domain": "..."}'
@@ -54,7 +60,7 @@ def _build_phase_a_prompt(
 
 def _build_phase_b_prompt(title: str, abstract: str) -> str:
     return (
-        f"بر اساس طرح پژوهشی زیر، بخش‌های تکمیلی را به فارسی رسمی بنویس:\n"
+        f"بر اساس پروپوزال پژوهشی زیر، بخش‌های تکمیلی را به فارسی رسمی بنویس:\n"
         f"عنوان: {title}\n"
         f"چکیده: {abstract}\n\n"
         "خروجی JSON:\n"
@@ -97,8 +103,6 @@ def generate_projects(
     config.DATA_RAW.mkdir(parents=True, exist_ok=True)
     rng = random.Random(config.SEED + 1)
 
-    # Build done set keyed by (manager_id, global_seq) so that pre-populated
-    # rows with seq=0..12 (global per researcher) are correctly recognised.
     done: set[tuple] = set()
     if config.PROJECTS_CSV.exists():
         existing = pd.read_csv(config.PROJECTS_CSV)
@@ -112,7 +116,6 @@ def generate_projects(
             "year", "seq",
         ]).to_csv(config.PROJECTS_CSV, index=False, encoding="utf-8-sig")
 
-    # Load all rows already written so project_id numbering is correct.
     rows_written: list[dict] = []
     if config.PROJECTS_CSV.exists():
         rows_written = pd.read_csv(config.PROJECTS_CSV).to_dict("records")
@@ -123,27 +126,32 @@ def generate_projects(
         primary = specialties[0]
         secondary = specialties[1] if len(specialties) > 1 else primary
 
+        primary_subs = config.SPECIALTIES[primary]["sub_topics"]
+        secondary_subs = config.SPECIALTIES[secondary]["sub_topics"]
+
         adjacent = config.SPECIALTIES[primary]["adjacent"]
         hard_pool = [s for s in adjacent if s != primary]
         if not hard_pool:
             hard_pool = [s for s in config.SPECIALTY_LIST if s != primary]
-        second_sp = rng.choice(hard_pool)
+        cross_specialty = rng.choice(hard_pool)
+        cross_sub = rng.choice(config.SPECIALTIES[cross_specialty]["sub_topics"])
 
-        # Build a flat task list — global_seq (0..12) is used as the resume key.
-        tasks: list[tuple] = []
-        for _ in range(5):
-            tasks.append(("easy", primary, None))
-        for _ in range(5):
-            tasks.append(("medium", secondary, None))
-        for _ in range(3):
-            tasks.append(("hard", primary, second_sp))
+        # 5 tasks per researcher: seq 0-1 easy, 2-3 medium, 4 hard
+        tasks = [
+            (0, "easy",   primary,   rng.choice(primary_subs),   None,            None),
+            (1, "easy",   primary,   rng.choice(primary_subs),   None,            None),
+            (2, "medium", secondary, rng.choice(secondary_subs), None,            None),
+            (3, "medium", secondary, rng.choice(secondary_subs), None,            None),
+            (4, "hard",   primary,   rng.choice(primary_subs),   cross_specialty, cross_sub),
+        ]
 
-        for global_seq, (difficulty, specialty, second_specialty) in enumerate(tasks):
-            if (rid, global_seq) in done:
+        for seq, difficulty, specialty, sub_topic, second_specialty, second_sub_topic in tasks:
+            if (rid, seq) in done:
                 continue
 
             phase_a_prompt = _build_phase_a_prompt(
-                researcher.to_dict(), difficulty, specialty, second_specialty
+                researcher.to_dict(), difficulty, specialty, sub_topic,
+                second_specialty, second_sub_topic,
             )
             phase_a = _call_gpt(client, SYSTEM_PROMPT, phase_a_prompt)
 
@@ -165,10 +173,10 @@ def generate_projects(
                 "manager_id": rid,
                 "difficulty": difficulty,
                 "year": rng.randint(1395, 1403),
-                "seq": global_seq,
+                "seq": seq,
             }
             rows_written.append(row)
-            done.add((rid, global_seq))
+            done.add((rid, seq))
 
             pd.DataFrame([row]).to_csv(
                 config.PROJECTS_CSV, mode="a", header=False, index=False, encoding="utf-8-sig"

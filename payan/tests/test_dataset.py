@@ -59,25 +59,25 @@ def test_researcher_multi_specialty_distribution(researchers):
 def test_specialty_weights_sum_to_one(researchers):
     for _, row in researchers.iterrows():
         weights_str = row["specialty_weights"]
-        assert weights_str != "", f"{row['researcher_id']} has empty specialty_weights"
+        assert weights_str != ""
         weights = dict(item.split(":") for item in str(weights_str).split("|"))
         total = sum(float(v) for v in weights.values())
-        assert abs(total - 1.0) < 0.01, f"{row['researcher_id']} weights sum to {total}"
+        assert abs(total - 1.0) < 0.01
 
 
 def test_project_count(projects):
-    assert len(projects) == 1300
+    assert len(projects) == 500
 
 
 def test_difficulty_distribution(projects):
-    assert (projects["difficulty"] == "easy").sum() == 500
-    assert (projects["difficulty"] == "medium").sum() == 500
-    assert (projects["difficulty"] == "hard").sum() == 300
+    assert (projects["difficulty"] == "easy").sum() == 200
+    assert (projects["difficulty"] == "medium").sum() == 200
+    assert (projects["difficulty"] == "hard").sum() == 100
 
 
-def test_each_researcher_has_13_projects(projects, researchers):
+def test_each_researcher_has_5_projects(projects, researchers):
     per_researcher = projects.groupby("manager_id").size()
-    assert (per_researcher == 13).all(), f"Some researchers don't have 13 projects: {per_researcher[per_researcher != 13]}"
+    assert (per_researcher == 5).all()
 
 
 def test_manager_ids_valid(projects, researchers):
@@ -102,7 +102,11 @@ def test_supervisor_rank_constraint(assignments, researchers):
     rank_map = researchers.set_index("researcher_id")["academic_rank"]
     for _, row in supervisors.iterrows():
         rank = rank_map[row["researcher_id"]]
-        assert rank in config.SUPERVISOR_RANKS, f"Invalid supervisor rank: {rank}"
+        assert rank in config.SUPERVISOR_RANKS
+
+
+def test_no_همکار_in_assignments(assignments):
+    assert "همکار" not in assignments["role"].values
 
 
 def test_no_researcher_appears_twice_in_same_project(assignments):
