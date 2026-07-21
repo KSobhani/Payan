@@ -136,13 +136,15 @@ def generate_projects(
         cross_specialty = rng.choice(hard_pool)
         cross_sub = rng.choice(config.SPECIALTIES[cross_specialty]["sub_topics"])
 
-        # 5 tasks per researcher: seq 0-1 easy, 2-3 medium, 4 hard
+        # 7 tasks per researcher: seq 0-2 easy, 3-5 medium, 6 hard
         tasks = [
-            (0, "easy",   primary,   rng.choice(primary_subs),   None,            None),
-            (1, "easy",   primary,   rng.choice(primary_subs),   None,            None),
-            (2, "medium", secondary, rng.choice(secondary_subs), None,            None),
-            (3, "medium", secondary, rng.choice(secondary_subs), None,            None),
-            (4, "hard",   primary,   rng.choice(primary_subs),   cross_specialty, cross_sub),
+            (0, "easy",   primary,   primary_subs[0],   None,            None),
+            (1, "easy",   primary,   primary_subs[1],   None,            None),
+            (2, "easy",   primary,   primary_subs[2],   None,            None),
+            (3, "medium", secondary, secondary_subs[0], None,            None),
+            (4, "medium", secondary, secondary_subs[1], None,            None),
+            (5, "medium", secondary, secondary_subs[2], None,            None),
+            (6, "hard",   primary,   primary_subs[0],   cross_specialty, cross_sub),
         ]
 
         for seq, difficulty, specialty, sub_topic, second_specialty, second_sub_topic in tasks:
