@@ -7,7 +7,7 @@ from src.researchers import generate_researchers
 from src.projects import (
     _build_phase_a_prompt,
     _build_phase_b_prompt,
-    _call_gpt,
+    _call_gemini,
     generate_projects,
 )
 
@@ -62,23 +62,23 @@ def test_phase_b_prompt_references_title_and_abstract():
     assert "introduction" in prompt or "مقدمه" in prompt
 
 
-def test_call_gpt_returns_parsed_dict(mock_paths):
+def test_call_gemini_returns_parsed_dict(mock_paths):
     client = MagicMock()
     r = MagicMock()
-    r.choices[0].message.content = json.dumps(FAKE_PHASE_A, ensure_ascii=False)
-    client.chat.completions.create.return_value = r
-    result = _call_gpt(client, "system prompt", "user prompt")
+    r.text = json.dumps(FAKE_PHASE_A, ensure_ascii=False)
+    client.models.generate_content.return_value = r
+    result = _call_gemini(client, "system prompt", "user prompt")
     assert result == FAKE_PHASE_A
 
 
-def test_call_gpt_retries_on_json_error(mock_paths):
+def test_call_gemini_retries_on_json_error(mock_paths):
     client = MagicMock()
     bad = MagicMock()
-    bad.choices[0].message.content = "not json"
+    bad.text = "not json"
     good = MagicMock()
-    good.choices[0].message.content = json.dumps(FAKE_PHASE_A)
-    client.chat.completions.create.side_effect = [bad, good]
-    result = _call_gpt(client, "sys", "user", max_retries=2)
+    good.text = json.dumps(FAKE_PHASE_A)
+    client.models.generate_content.side_effect = [bad, good]
+    result = _call_gemini(client, "sys", "user", max_retries=2)
     assert result == FAKE_PHASE_A
 
 
@@ -90,12 +90,12 @@ def _make_mock_client():
         call_count["n"] += 1
         r = MagicMock()
         if call_count["n"] % 2 == 1:
-            r.choices[0].message.content = json.dumps(FAKE_PHASE_A, ensure_ascii=False)
+            r.text = json.dumps(FAKE_PHASE_A, ensure_ascii=False)
         else:
-            r.choices[0].message.content = json.dumps(FAKE_PHASE_B, ensure_ascii=False)
+            r.text = json.dumps(FAKE_PHASE_B, ensure_ascii=False)
         return r
 
-    client.chat.completions.create.side_effect = side_effect
+    client.models.generate_content.side_effect = side_effect
     return client, call_count
 
 

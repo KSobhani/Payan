@@ -11,7 +11,7 @@ PROJECTS_CSV = DATA_RAW / "projects.csv"
 ASSIGNMENTS_CSV = DATA_RAW / "project_assignments.csv"
 PROJECTS_CLEAN_CSV = DATA_PROCESSED / "projects_clean.csv"
 
-GPT_MODEL = "gpt-4o"
+GEMINI_MODEL = "gemini-3.6-flash"
 
 N_RESEARCHERS = 100
 PROJECTS_PER_RESEARCHER = 8

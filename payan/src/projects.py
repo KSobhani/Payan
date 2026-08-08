@@ -71,18 +71,20 @@ def _build_phase_b_prompt(title: str, abstract: str) -> str:
     )
 
 
-def _call_gpt(client, system: str, user: str, max_retries: int = 3) -> dict:
+def _call_gemini(client, system: str, user: str, max_retries: int = 3) -> dict:
+    from google.genai import types
+
     for attempt in range(max_retries):
         try:
-            response = client.chat.completions.create(
-                model=config.GPT_MODEL,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
+            response = client.models.generate_content(
+                model=config.GEMINI_MODEL,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    response_mime_type="application/json",
+                ),
+                contents=user,
             )
-            return json.loads(response.choices[0].message.content)
+            return json.loads(response.text)
         except (json.JSONDecodeError, Exception):
             if attempt == max_retries - 1:
                 raise
@@ -94,11 +96,8 @@ def generate_projects(
     researchers_df: pd.DataFrame,
     client=None,
 ) -> pd.DataFrame:
-    from openai import OpenAI
-    import os
-
     if client is None:
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = get_gemini_client()
 
     config.DATA_RAW.mkdir(parents=True, exist_ok=True)
     rng = random.Random(config.SEED + 1)
@@ -166,12 +165,12 @@ def generate_projects(
                 researcher.to_dict(), difficulty, specialty, sub_topic,
                 second_specialty, second_sub_topic,
             )
-            phase_a = _call_gpt(client, SYSTEM_PROMPT, phase_a_prompt)
+            phase_a = _call_gemini(client, SYSTEM_PROMPT, phase_a_prompt)
 
             phase_b_prompt = _build_phase_b_prompt(
                 phase_a.get("title", ""), phase_a.get("abstract", "")
             )
-            phase_b = _call_gpt(client, SYSTEM_PROMPT, phase_b_prompt)
+            phase_b = _call_gemini(client, SYSTEM_PROMPT, phase_b_prompt)
 
             row = {
                 "project_id": f"PRJ_{len(rows_written) + 1:04d}",
@@ -185,7 +184,7 @@ def generate_projects(
                 "keywords": "|".join(phase_a.get("keywords", [])),
                 "manager_id": rid,
                 "difficulty": difficulty,
-                "year": rng.randint(1395, 1403),
+                "year": rng.randint(1398, 1405),
                 "seq": seq,
             }
             rows_written.append(row)
@@ -198,9 +197,9 @@ def generate_projects(
     return pd.read_csv(config.PROJECTS_CSV)
 
 
-def get_openai_client():
-    from openai import OpenAI
+def get_gemini_client():
+    from google import genai
     import os
     from dotenv import load_dotenv
     load_dotenv()
-    return OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    return genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
