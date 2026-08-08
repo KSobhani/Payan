@@ -200,6 +200,14 @@ def generate_projects(
 def get_gemini_client():
     from google import genai
     import os
-    from dotenv import load_dotenv
-    load_dotenv()
-    return genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+
+    # Try Kaggle secrets first, fall back to .env
+    try:
+        from kaggle_secrets import UserSecretsClient
+        api_key = UserSecretsClient().get_secret("GOOGLE_API_KEY")
+    except Exception:
+        from dotenv import load_dotenv
+        load_dotenv()
+        api_key = os.environ["GOOGLE_API_KEY"]
+
+    return genai.Client(api_key=api_key)
