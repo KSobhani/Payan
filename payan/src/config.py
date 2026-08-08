@@ -11,7 +11,7 @@ PROJECTS_CSV = DATA_RAW / "projects.csv"
 ASSIGNMENTS_CSV = DATA_RAW / "project_assignments.csv"
 PROJECTS_CLEAN_CSV = DATA_PROCESSED / "projects_clean.csv"
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.0-flash"
 GEMINI_TEMPERATURE = 1.2  # بالا = متنوع‌تر، پایین = تکراری‌تر
 
 N_RESEARCHERS = 100
