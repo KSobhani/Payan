@@ -101,6 +101,7 @@ def _call_gemini_researcher(client, system: str, user: str, max_retries: int = 8
                 config=types.GenerateContentConfig(
                     system_instruction=system,
                     response_mime_type="application/json",
+                    temperature=config.GEMINI_TEMPERATURE,
                 ),
                 contents=user,
             )
