@@ -71,8 +71,9 @@ def _build_phase_b_prompt(title: str, abstract: str) -> str:
     )
 
 
-def _call_gemini(client, system: str, user: str, max_retries: int = 3) -> dict:
+def _call_gemini(client, system: str, user: str, max_retries: int = 8) -> dict:
     from google.genai import types
+    import re
 
     for attempt in range(max_retries):
         try:
@@ -85,10 +86,21 @@ def _call_gemini(client, system: str, user: str, max_retries: int = 3) -> dict:
                 contents=user,
             )
             return json.loads(response.text)
-        except (json.JSONDecodeError, Exception):
-            if attempt == max_retries - 1:
-                raise
-            time.sleep(2 ** attempt)
+        except Exception as e:
+            is_429 = "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
+            if is_429:
+                match = re.search(r"retry in ([\d.]+)s", str(e))
+                wait = float(match.group(1)) + 5 if match else 65
+                print(f"  ⏳ Rate limit — {wait:.0f}s صبر کن... (تلاش {attempt+1}/{max_retries})")
+                time.sleep(wait)
+            elif isinstance(e, json.JSONDecodeError):
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(2 ** attempt)
+            else:
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(2 ** attempt)
     return {}
 
 
@@ -193,6 +205,8 @@ def generate_projects(
             pd.DataFrame([row]).to_csv(
                 config.PROJECTS_CSV, mode="a", header=False, index=False, encoding="utf-8-sig"
             )
+            total_done = len(rows_written)
+            print(f"  ✅ [{total_done}/800] {row['project_id']} — {difficulty} | {specialty[:25]}")
 
     return pd.read_csv(config.PROJECTS_CSV)
 
