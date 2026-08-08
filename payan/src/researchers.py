@@ -190,12 +190,27 @@ def generate_researchers_with_api(client=None) -> pd.DataFrame:
 
     specialty_list = config.SPECIALTY_LIST
     n_sp = len(specialty_list)
-    rows = []
+
+    # Resume: بارگذاری پژوهشگرهای قبلاً ساخته‌شده
+    done_ids: set[str] = set()
+    if config.RESEARCHERS_CSV.exists():
+        existing = pd.read_csv(config.RESEARCHERS_CSV)
+        done_ids = set(existing["researcher_id"].tolist())
+        print(f"  ♻️  {len(done_ids)} پژوهشگر از قبل موجود — ادامه از همون‌جا")
+    else:
+        # ساخت فایل خالی با هدر
+        pd.DataFrame(columns=[
+            "researcher_id", "name", "academic_rank", "university", "department",
+            "self_declared_specialties", "research_keywords", "paper_titles",
+            "specialty_weights", "num_papers", "topic_diversity", "activity_index",
+        ]).to_csv(config.RESEARCHERS_CSV, index=False, encoding="utf-8-sig")
 
     for i in range(config.N_RESEARCHERS):
+        researcher_id = f"Researcher_{i + 1:03d}"
+
+        # مصرف rng برای حفظ seed یکسان حتی اگه skip بشه
         primary = specialty_list[i % n_sp]
         n_specs = counts[i]
-
         if n_specs == 1:
             specialties = [primary]
         else:
@@ -209,7 +224,9 @@ def generate_researchers_with_api(client=None) -> pd.DataFrame:
         rank = rng.choices(config.ACADEMIC_RANKS, weights=config.RANK_WEIGHTS, k=1)[0]
         topic_div = _topic_diversity(rng, len(specialties))
         activity_idx = round(rng.uniform(0.3, 1.0), 3)
-        researcher_id = f"Researcher_{i + 1:03d}"
+
+        if researcher_id in done_ids:
+            continue
 
         prompt = _build_researcher_prompt(researcher_id, rank, specialties, topic_div, activity_idx)
         result = _call_gemini_researcher(client, RESEARCHER_SYSTEM_PROMPT, prompt)
@@ -224,9 +241,11 @@ def generate_researchers_with_api(client=None) -> pd.DataFrame:
         result["topic_diversity"] = topic_div
         result["activity_index"] = activity_idx
 
-        rows.append(result)
-        print(f"  ✅ [{i + 1}/{config.N_RESEARCHERS}] {researcher_id} — {rank} | {primary[:30]}")
+        # ذخیره فوری
+        pd.DataFrame([result]).to_csv(
+            config.RESEARCHERS_CSV, mode="a", header=False, index=False, encoding="utf-8-sig"
+        )
+        done_ids.add(researcher_id)
+        print(f"  ✅ [{len(done_ids)}/{config.N_RESEARCHERS}] {researcher_id} — {rank} | {primary[:30]}")
 
-    df = pd.DataFrame(rows)
-    df.to_csv(config.RESEARCHERS_CSV, index=False, encoding="utf-8-sig")
-    return df
+    return pd.read_csv(config.RESEARCHERS_CSV)
