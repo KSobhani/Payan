@@ -1,0 +1,18 @@
+# Other projects in this directory — not part of payan repo
+Care-Novate-Backend/
+cuda/
+elderly-care-facility-directory-backend/
+nashvi/
+
+# Python
+*.pyc
+__pycache__/
+.pytest_cache/
+*.egg-info/
+
+# Env
+.env
+
+# OS
+.DS_Store
+Thumbs.db
