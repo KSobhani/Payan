@@ -93,12 +93,15 @@ def _call_gemini(client, system: str, user: str, max_retries: int = 8) -> dict:
                 match = re.search(r"retry in ([\d.]+)s", str(e))
                 wait = float(match.group(1)) + 5 if match else 65
                 print(f"  ⏳ Rate limit — {wait:.0f}s صبر کن... (تلاش {attempt+1}/{max_retries})")
+                print(f"  ❌ {e}")
                 time.sleep(wait)
             elif isinstance(e, json.JSONDecodeError):
+                print(f"  ❌ JSON parse error (تلاش {attempt+1}/{max_retries}): {e}")
                 if attempt == max_retries - 1:
                     raise
                 time.sleep(2 ** attempt)
             else:
+                print(f"  ❌ خطا (تلاش {attempt+1}/{max_retries}): {type(e).__name__}: {e}")
                 if attempt == max_retries - 1:
                     raise
                 time.sleep(2 ** attempt)

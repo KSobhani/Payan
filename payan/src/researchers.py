@@ -111,10 +111,13 @@ def _call_gemini_researcher(client, system: str, user: str, max_retries: int = 8
                 match = re.search(r"retry in ([\d.]+)s", str(e))
                 wait = float(match.group(1)) + 5 if match else 65
                 print(f"  ⏳ Rate limit — {wait:.0f}s صبر کن... (تلاش {attempt+1}/{max_retries})")
+                print(f"  ❌ {e}")
                 time.sleep(wait)
             elif attempt == max_retries - 1:
+                print(f"  ❌ خطا نهایی: {type(e).__name__}: {e}")
                 raise
             else:
+                print(f"  ❌ خطا (تلاش {attempt+1}/{max_retries}): {type(e).__name__}: {e}")
                 time.sleep(2 ** attempt)
     return {}
 
